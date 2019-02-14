@@ -13,11 +13,12 @@ import net.bjoernpetersen.musicbot.spi.plugin.predefined.AacPlabackFactory
 import net.bjoernpetersen.musicbot.spi.plugin.predefined.FlacPlaybackFactory
 import net.bjoernpetersen.musicbot.spi.plugin.predefined.Mp3PlaybackFactory
 import net.bjoernpetersen.musicbot.spi.plugin.predefined.WavePlaybackFactory
+import net.bjoernpetersen.musicbot.spi.util.FileStorage
 import net.bjoernpetersen.musicbot.youtube.playback.YouTubePlaybackFactory
-import java.io.BufferedWriter
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import javax.inject.Inject
 import kotlin.concurrent.thread
 
 private const val EXECUTABLE = "mpv"
@@ -35,6 +36,10 @@ class MpvPlaybackFactory :
 
     private lateinit var noVideo: Config.BooleanEntry
     private lateinit var noConfig: Config.BooleanEntry
+
+    @Inject
+    private lateinit var fileStorage: FileStorage
+    private lateinit var cmdFileDir: File
 
     override fun createStateEntries(state: Config) {}
     override fun createConfigEntries(config: Config): List<Config.Entry<*>> {
@@ -61,25 +66,33 @@ class MpvPlaybackFactory :
             initStateWriter.warning("Failed to start mpv.")
             throw InitializationException(e)
         }
+
+        initStateWriter.state("Retrieving plugin dir...")
+        cmdFileDir = fileStorage.forPlugin(this, true)
     }
 
     override fun createPlayback(inputFile: File): Playback {
         if (!inputFile.isFile) throw IOException("File not found: ${inputFile.path}")
-        return MpvPlayback(inputFile.canonicalPath, noVideo.get(), noConfig.get())
+        return MpvPlayback(cmdFileDir, inputFile.canonicalPath, noVideo.get(), noConfig.get())
     }
 
     override fun load(videoId: String): Resource = NoResource
     override fun createPlayback(videoId: String, resource: Resource): Playback {
-        return MpvPlayback("ytdl://$videoId", noVideo.get(), noConfig.get())
+        return MpvPlayback(cmdFileDir, "ytdl://$videoId", noVideo.get(), noConfig.get())
     }
 
     override fun close() {}
 }
 
-private class MpvPlayback(path: String, noVideo: Boolean, noConfig: Boolean) : AbstractPlayback() {
+private class MpvPlayback(
+    dir: File,
+    path: String,
+    noVideo: Boolean,
+    noConfig: Boolean) : AbstractPlayback() {
+
     private val logger = KotlinLogging.logger { }
 
-    private val cmdFile = File.createTempFile("mpvCmdFile", null)
+    private val cmdFile = File.createTempFile("mpvCmd", null, dir)
     private val mpv = ProcessBuilder(
         EXECUTABLE,
         "--input-file=${cmdFile.canonicalPath}",
@@ -122,24 +135,29 @@ private class MpvPlayback(path: String, noVideo: Boolean, noConfig: Boolean) : A
                 }
             }
         }
-    private val writer: BufferedWriter = cmdFile.bufferedWriter()
+    private val writer = cmdFile.bufferedWriter()
 
     override fun play() {
-        writer.write("set pause no")
-        writer.newLine()
-        writer.flush()
+        writer.apply {
+            write("set pause no")
+            newLine()
+            flush()
+        }
     }
 
     override fun pause() {
-        writer.write("set pause yes")
-        writer.newLine()
-        writer.flush()
+        writer.apply {
+            write("set pause yes")
+            newLine()
+            flush()
+        }
     }
 
     override fun close() {
-        writer.write("quit")
-        writer.newLine()
-        writer.close()
+        writer.use {
+            it.write("quit")
+            it.newLine()
+        }
         if (!mpv.waitFor(5, TimeUnit.SECONDS)) {
             mpv.destroyForcibly()
         }
