@@ -2,7 +2,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: nishtahir/openjfx:8-jdk
+      - image: openjdk:8-jdk
     working_directory: ~/app
     environment:
       GRADLE_OPTS: -Dorg.gradle.daemon=false
@@ -12,20 +12,17 @@ jobs:
 
       - restore_cache:
           keys:
-            - v1-{{ checksum "build.gradle.kts" }}-{{ checksum "buildSrc/src/main/kotlin/Plugin.kt" }}-{{ checksum "buildSrc/src/main/kotlin/Lib.kt" }}
-            - v1-{{ checksum "build.gradle.kts" }}-{{ checksum "buildSrc/src/main/kotlin/Plugin.kt" }}
-            - v1-{{ checksum "build.gradle.kts" }}
-            # fallback to using the latest cache if no exact match is found
-            - v1-
-          paths:
-            - ~/.m2
+            - v2-{{ checksum "build.gradle.kts" }}-{{ checksum "buildSrc/src/main/kotlin/Plugin.kt" }}-{{ checksum "buildSrc/src/main/kotlin/Lib.kt" }}
+            - v2-{{ checksum "build.gradle.kts" }}-{{ checksum "buildSrc/src/main/kotlin/Plugin.kt" }}
+            - v2-{{ checksum "build.gradle.kts" }}
+            - v2-
 
       - run: ./gradlew dependencies
 
       - save_cache:
-          key: v1-{{ checksum "build.gradle.kts" }}-{{ checksum "buildSrc/src/main/kotlin/Plugin.kt" }}-{{ checksum "buildSrc/src/main/kotlin/Lib.kt" }}
+          key: v2-{{ checksum "build.gradle.kts" }}-{{ checksum "buildSrc/src/main/kotlin/Plugin.kt" }}-{{ checksum "buildSrc/src/main/kotlin/Lib.kt" }}
           paths:
-            - ~/.m2
+            - ~/.gradle
 
       - run:
           command: ./gradlew test
