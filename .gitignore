@@ -1,0 +1,40 @@
+*.class
+
+# Package Files #
+*.jar
+*.war
+*.ear
+
+.*/
+!.circleci/
+bin/
+
+*.class
+
+# Package Files #
+*.jar
+*.war
+*.ear
+
+bin/
+/.apt_generated/
+
+# Eclipse #
+.classpath
+.factorypath
+.project
+.settings/
+
+# Intellij #
+.idea/
+*.iml
+*.iws
+
+# Mac #
+.DS_Store
+
+# Gradle #
+!gradle-wrapper.jar
+build/
+out/
+gradle.properties
