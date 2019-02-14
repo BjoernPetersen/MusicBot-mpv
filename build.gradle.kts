@@ -15,7 +15,7 @@ version = "0.1.0-SNAPSHOT"
 
 repositories {
     jcenter()
-    maven("https://oss.sonatype.org/content/repositories/snapshots")
+    // maven("https://oss.sonatype.org/content/repositories/snapshots")
 }
 
 idea {
@@ -58,6 +58,11 @@ dependencies {
         group = "com.github.bjoernpetersen",
         name = "musicbot",
         version = Lib.MUSICBOT)
+
+    implementation(
+        group = "com.github.bjoernpetersen",
+        name = "musicbot-youtube",
+        version = Lib.YOUTUBE_PROVIDER)
 
     testImplementation(
         group = "org.junit.jupiter",
