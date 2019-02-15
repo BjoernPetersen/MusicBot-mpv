@@ -49,11 +49,14 @@ tasks {
 }
 
 dependencies {
-    implementation(kotlin("stdlib-jdk8"))
     implementation(
         group = "io.github.microutils",
         name = "kotlin-logging",
-        version = Lib.KOTLIN_LOGGING)
+        version = Lib.KOTLIN_LOGGING) {
+        exclude("org.slf4j")
+        exclude("org.jetbrains")
+        exclude("org.jetbrains.kotlin")
+    }
     compileOnly(
         group = "com.github.bjoernpetersen",
         name = "musicbot",
