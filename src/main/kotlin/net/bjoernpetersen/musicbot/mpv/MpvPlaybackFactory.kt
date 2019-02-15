@@ -92,10 +92,14 @@ private class MpvPlayback(
 
     private val logger = KotlinLogging.logger { }
 
-    private val cmdFile = File.createTempFile("mpvCmd", null, dir)
+    // TODO for some reason, the file method doesn't work for linux
+    private val isWin = System.getProperty("os.name").toLowerCase().startsWith("win")
+    private val filePath =
+        if (isWin) File.createTempFile("mpvCmd", null, dir).canonicalPath
+        else "/dev/stdin"
     private val mpv = ProcessBuilder(
         EXECUTABLE,
-        "--input-file=${cmdFile.canonicalPath}",
+        "--input-file=$filePath",
         "--no-input-terminal",
         "--no-input-default-bindings",
         "--no-osc",
@@ -135,7 +139,9 @@ private class MpvPlayback(
                 }
             }
         }
-    private val writer = cmdFile.bufferedWriter()
+    private val writer =
+        if (isWin) File(filePath).bufferedWriter()
+        else mpv.outputStream.bufferedWriter()
 
     override fun play() {
         writer.apply {
@@ -161,8 +167,9 @@ private class MpvPlayback(
         if (!mpv.waitFor(5, TimeUnit.SECONDS)) {
             mpv.destroyForcibly()
         }
-        if (!cmdFile.delete()) {
-            logger.warn { "Could not delete temporary file: ${cmdFile.path}" }
+
+        if (isWin && !File(filePath).delete()) {
+            logger.warn { "Could not delete temporary file: $filePath" }
         }
     }
 }
