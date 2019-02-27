@@ -75,6 +75,4 @@ dependencies {
         group = "org.junit.jupiter",
         name = "junit-jupiter-engine",
         version = Lib.JUNIT)
-    testImplementation(group = "io.mockk", name = "mockk", version = Lib.MOCK_K)
-    testImplementation(group = "org.assertj", name = "assertj-core", version = Lib.ASSERT_J)
 }
