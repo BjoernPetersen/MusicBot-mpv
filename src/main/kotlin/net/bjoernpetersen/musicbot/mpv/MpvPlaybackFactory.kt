@@ -184,11 +184,19 @@ private class MpvPlayback(
     }
 
     override fun close() {
-        writer.use {
-            it.write("quit")
-            it.newLine()
+        if (mpv.isAlive) {
+            writer.use {
+                try {
+                    it.write("quit")
+                    it.newLine()
+                } catch (e: IOException) {
+                    logger.warn(e) { "Could not send quit command to mpv" }
+                }
+            }
         }
+
         if (!mpv.waitFor(5, TimeUnit.SECONDS)) {
+            logger.warn { "There is probably an unclosed mpv process." }
             mpv.destroyForcibly()
         }
 
