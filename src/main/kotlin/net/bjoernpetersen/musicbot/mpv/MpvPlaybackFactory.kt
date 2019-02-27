@@ -35,6 +35,7 @@ class MpvPlaybackFactory :
     override val description: String = "Plays various files using mpv"
 
     private lateinit var noVideo: Config.BooleanEntry
+    private lateinit var fullscreen: Config.BooleanEntry
     private lateinit var noConfig: Config.BooleanEntry
 
     @Inject
@@ -46,12 +47,19 @@ class MpvPlaybackFactory :
         noVideo = config.BooleanEntry(
             "noVideo",
             "Don't show video for video files",
-            true)
+            true
+        )
+        fullscreen = config.BooleanEntry(
+            "fullscreen",
+            "Show videos in fullscreen mode",
+            true
+        )
 
         noConfig = config.BooleanEntry(
             "noConfig",
             "Ignore the default, system-wide mpv config",
-            true)
+            true
+        )
 
         return listOf(noVideo, noConfig)
     }
@@ -73,12 +81,24 @@ class MpvPlaybackFactory :
 
     override fun createPlayback(inputFile: File): Playback {
         if (!inputFile.isFile) throw IOException("File not found: ${inputFile.path}")
-        return MpvPlayback(cmdFileDir, inputFile.canonicalPath, noVideo.get(), noConfig.get())
+        return MpvPlayback(
+            cmdFileDir,
+            inputFile.canonicalPath,
+            noVideo = noVideo.get(),
+            fullscreen = fullscreen.get(),
+            noConfig = noConfig.get()
+        )
     }
 
     override fun load(videoId: String): Resource = NoResource
     override fun createPlayback(videoId: String, resource: Resource): Playback {
-        return MpvPlayback(cmdFileDir, "ytdl://$videoId", noVideo.get(), noConfig.get())
+        return MpvPlayback(
+            cmdFileDir,
+            "ytdl://$videoId",
+            noVideo = noVideo.get(),
+            fullscreen = fullscreen.get(),
+            noConfig = noConfig.get()
+        )
     }
 
     override fun close() {}
@@ -88,7 +108,9 @@ private class MpvPlayback(
     dir: File,
     path: String,
     noVideo: Boolean,
-    noConfig: Boolean) : AbstractPlayback() {
+    fullscreen: Boolean,
+    noConfig: Boolean
+) : AbstractPlayback() {
 
     private val logger = KotlinLogging.logger { }
 
@@ -106,8 +128,10 @@ private class MpvPlayback(
         "--config=${if (noConfig) "no" else "yes"}",
         "--really-quiet",
         "--video=${if (noVideo) "no" else "auto"}",
+        "--fullscreen=${if (fullscreen) "yes" else "no"}",
         "--pause",
-        path)
+        path
+    )
         .start()
         .also { process ->
             thread(isDaemon = true, name = "mpv-playback-$path-out") {
