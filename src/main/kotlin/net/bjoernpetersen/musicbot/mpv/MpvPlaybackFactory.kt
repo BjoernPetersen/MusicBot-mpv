@@ -36,7 +36,7 @@ class MpvPlaybackFactory :
 
     private lateinit var noVideo: Config.BooleanEntry
     private lateinit var fullscreen: Config.BooleanEntry
-    private lateinit var noConfig: Config.BooleanEntry
+    private lateinit var ignoreSystemConfig: Config.BooleanEntry
 
     @Inject
     private lateinit var fileStorage: FileStorage
@@ -55,13 +55,13 @@ class MpvPlaybackFactory :
             true
         )
 
-        noConfig = config.BooleanEntry(
-            "noConfig",
+        ignoreSystemConfig = config.BooleanEntry(
+            "ignoreSystemConfig",
             "Ignore the default, system-wide mpv config",
             true
         )
 
-        return listOf(noVideo, fullscreen, noConfig)
+        return listOf(noVideo, fullscreen, ignoreSystemConfig)
     }
 
     override fun createSecretEntries(secrets: Config): List<Config.Entry<*>> = emptyList()
@@ -86,7 +86,7 @@ class MpvPlaybackFactory :
             inputFile.canonicalPath,
             noVideo = noVideo.get(),
             fullscreen = fullscreen.get(),
-            noConfig = noConfig.get()
+            noConfig = ignoreSystemConfig.get()
         )
     }
 
@@ -97,7 +97,7 @@ class MpvPlaybackFactory :
             "ytdl://$videoId",
             noVideo = noVideo.get(),
             fullscreen = fullscreen.get(),
-            noConfig = noConfig.get()
+            noConfig = ignoreSystemConfig.get()
         )
     }
 
