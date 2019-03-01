@@ -144,6 +144,7 @@ private class MpvPlayback(
         "--really-quiet",
         "--video=${if (noVideo) "no" else "auto"}",
         "--fullscreen=${if (fullscreen) "yes" else "no"}",
+        "--fs-screen=$screen",
         "--screen=$screen",
         "--pause",
         path
