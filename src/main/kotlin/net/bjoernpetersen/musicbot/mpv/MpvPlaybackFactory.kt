@@ -61,7 +61,7 @@ class MpvPlaybackFactory :
             true
         )
 
-        return listOf(noVideo, noConfig)
+        return listOf(noVideo, fullscreen, noConfig)
     }
 
     override fun createSecretEntries(secrets: Config): List<Config.Entry<*>> = emptyList()
