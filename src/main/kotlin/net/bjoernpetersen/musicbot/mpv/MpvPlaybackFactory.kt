@@ -2,6 +2,9 @@ package net.bjoernpetersen.musicbot.mpv;
 
 import mu.KotlinLogging
 import net.bjoernpetersen.musicbot.api.config.Config
+import net.bjoernpetersen.musicbot.api.config.IntSerializer
+import net.bjoernpetersen.musicbot.api.config.NonnullConfigChecker
+import net.bjoernpetersen.musicbot.api.config.NumberBox
 import net.bjoernpetersen.musicbot.api.loader.NoResource
 import net.bjoernpetersen.musicbot.api.plugin.IdBase
 import net.bjoernpetersen.musicbot.spi.loader.Resource
@@ -36,6 +39,7 @@ class MpvPlaybackFactory :
 
     private lateinit var noVideo: Config.BooleanEntry
     private lateinit var fullscreen: Config.BooleanEntry
+    private lateinit var screen: Config.SerializedEntry<Int>
     private lateinit var ignoreSystemConfig: Config.BooleanEntry
 
     @Inject
@@ -54,6 +58,14 @@ class MpvPlaybackFactory :
             "Show videos in fullscreen mode",
             true
         )
+        screen = config.SerializedEntry(
+            key = "screen",
+            description = "1-based index of screen to show videos on",
+            serializer = IntSerializer,
+            configChecker = NonnullConfigChecker,
+            uiNode = NumberBox(min = 1, max = Integer.MAX_VALUE),
+            default = 1
+        )
 
         ignoreSystemConfig = config.BooleanEntry(
             "ignoreSystemConfig",
@@ -61,7 +73,7 @@ class MpvPlaybackFactory :
             true
         )
 
-        return listOf(noVideo, fullscreen, ignoreSystemConfig)
+        return listOf(noVideo, fullscreen, screen, ignoreSystemConfig)
     }
 
     override fun createSecretEntries(secrets: Config): List<Config.Entry<*>> = emptyList()
@@ -86,7 +98,8 @@ class MpvPlaybackFactory :
             inputFile.canonicalPath,
             noVideo = noVideo.get(),
             fullscreen = fullscreen.get(),
-            noConfig = ignoreSystemConfig.get()
+            screen = screen.get()!!,
+            ignoreSystemConfig = ignoreSystemConfig.get()
         )
     }
 
@@ -97,7 +110,8 @@ class MpvPlaybackFactory :
             "ytdl://$videoId",
             noVideo = noVideo.get(),
             fullscreen = fullscreen.get(),
-            noConfig = ignoreSystemConfig.get()
+            screen = screen.get()!!,
+            ignoreSystemConfig = ignoreSystemConfig.get()
         )
     }
 
@@ -109,7 +123,8 @@ private class MpvPlayback(
     path: String,
     noVideo: Boolean,
     fullscreen: Boolean,
-    noConfig: Boolean
+    screen: Int,
+    ignoreSystemConfig: Boolean
 ) : AbstractPlayback() {
 
     private val logger = KotlinLogging.logger { }
@@ -125,10 +140,11 @@ private class MpvPlayback(
         "--no-input-terminal",
         "--no-input-default-bindings",
         "--no-osc",
-        "--config=${if (noConfig) "no" else "yes"}",
+        "--config=${if (ignoreSystemConfig) "no" else "yes"}",
         "--really-quiet",
         "--video=${if (noVideo) "no" else "auto"}",
         "--fullscreen=${if (fullscreen) "yes" else "no"}",
+        "--screen=$screen",
         "--pause",
         path
     )
