@@ -4,5 +4,5 @@ object Plugin {
     const val KOTLIN = "1.3.21"
     const val SPOTBUGS_PLUGIN = "1.6.10"
     const val SPOTBUGS_TOOL = "3.1.11"
-    const val SHADOW_JAR = "4.0.4"
+    const val SHADOW_JAR = "5.0.0"
 }
