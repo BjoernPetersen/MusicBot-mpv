@@ -60,10 +60,10 @@ class MpvPlaybackFactory :
         )
         screen = config.SerializedEntry(
             key = "screen",
-            description = "1-based index of screen to show videos on",
+            description = "Screen to show videos on (0-32)",
             serializer = IntSerializer,
             configChecker = NonnullConfigChecker,
-            uiNode = NumberBox(min = 1, max = Integer.MAX_VALUE),
+            uiNode = NumberBox(0, 32),
             default = 1
         )
 
