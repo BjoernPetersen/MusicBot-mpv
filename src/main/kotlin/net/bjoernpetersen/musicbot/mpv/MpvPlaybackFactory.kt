@@ -2,6 +2,8 @@ package net.bjoernpetersen.musicbot.mpv;
 
 import mu.KotlinLogging
 import net.bjoernpetersen.musicbot.api.config.Config
+import net.bjoernpetersen.musicbot.api.config.ConfigSerializer
+import net.bjoernpetersen.musicbot.api.config.FileChooser
 import net.bjoernpetersen.musicbot.api.config.IntSerializer
 import net.bjoernpetersen.musicbot.api.config.NonnullConfigChecker
 import net.bjoernpetersen.musicbot.api.config.NumberBox
@@ -40,6 +42,7 @@ class MpvPlaybackFactory :
     private lateinit var noVideo: Config.BooleanEntry
     private lateinit var fullscreen: Config.BooleanEntry
     private lateinit var screen: Config.SerializedEntry<Int>
+    private lateinit var configFile: Config.SerializedEntry<File>
     private lateinit var ignoreSystemConfig: Config.BooleanEntry
 
     @Inject
@@ -67,13 +70,21 @@ class MpvPlaybackFactory :
             default = 1
         )
 
+        configFile = config.SerializedEntry(
+            key = "configFile",
+            description = "A config file in a custom location to include",
+            serializer = FileSerializer,
+            configChecker = { if (it != null && !it.isFile) "Not a file" else null },
+            uiNode = FileChooser(false),
+            default = null
+        )
         ignoreSystemConfig = config.BooleanEntry(
             "ignoreSystemConfig",
             "Ignore the default, system-wide mpv config",
             true
         )
 
-        return listOf(noVideo, fullscreen, screen, ignoreSystemConfig)
+        return listOf(noVideo, fullscreen, screen, configFile, ignoreSystemConfig)
     }
 
     override fun createSecretEntries(secrets: Config): List<Config.Entry<*>> = emptyList()
@@ -99,6 +110,7 @@ class MpvPlaybackFactory :
             noVideo = noVideo.get(),
             fullscreen = fullscreen.get(),
             screen = screen.get()!!,
+            configFile = configFile.get(),
             ignoreSystemConfig = ignoreSystemConfig.get()
         )
     }
@@ -111,6 +123,7 @@ class MpvPlaybackFactory :
             noVideo = noVideo.get(),
             fullscreen = fullscreen.get(),
             screen = screen.get()!!,
+            configFile = configFile.get(),
             ignoreSystemConfig = ignoreSystemConfig.get()
         )
     }
@@ -124,6 +137,7 @@ private class MpvPlayback(
     noVideo: Boolean,
     fullscreen: Boolean,
     screen: Int,
+    configFile: File?,
     ignoreSystemConfig: Boolean
 ) : AbstractPlayback() {
 
@@ -134,7 +148,8 @@ private class MpvPlayback(
     private val filePath =
         if (isWin) File.createTempFile("mpvCmd", null, dir).canonicalPath
         else "/dev/stdin"
-    private val mpv = ProcessBuilder(
+
+    private val mpv = mutableListOf(
         EXECUTABLE,
         "--input-file=$filePath",
         "--no-input-terminal",
@@ -146,40 +161,46 @@ private class MpvPlayback(
         "--fullscreen=${if (fullscreen) "yes" else "no"}",
         "--fs-screen=$screen",
         "--screen=$screen",
-        "--pause",
-        path
-    )
-        .start()
-        .also { process ->
-            thread(isDaemon = true, name = "mpv-playback-$path-out") {
-                val reader = process.inputStream.bufferedReader()
-                try {
-                    while (process.isAlive) {
-                        val line = reader.readLine()
-                        logger.debug { "mpv says: $line" }
+        "--pause"
+    ).let { command ->
+        if (configFile != null) command.add("--include=${configFile.absolutePath}")
+
+        command.add(path)
+
+        ProcessBuilder(command)
+            .start()
+            .also { process ->
+                thread(isDaemon = true, name = "mpv-playback-$path-out") {
+                    val reader = process.inputStream.bufferedReader()
+                    try {
+                        while (process.isAlive) {
+                            val line = reader.readLine()
+                            logger.debug { "mpv says: $line" }
+                        }
+                    } catch (e: Throwable) {
+                        logger.error(e) { "Error while reading mpv output" }
+                    } finally {
+                        reader.close()
                     }
-                } catch (e: Throwable) {
-                    logger.error(e) { "Error while reading mpv output" }
-                } finally {
-                    reader.close()
+                    logger.debug { "mpv process ended" }
+                    markDone()
                 }
-                logger.debug { "mpv process ended" }
-                markDone()
-            }
-            thread(isDaemon = true, name = "mpv-playback-$path-error") {
-                val reader = process.errorStream.bufferedReader()
-                try {
-                    while (process.isAlive) {
-                        val line = reader.readLine()
-                        logger.debug { "mpv warns: $line" }
+                thread(isDaemon = true, name = "mpv-playback-$path-error") {
+                    val reader = process.errorStream.bufferedReader()
+                    try {
+                        while (process.isAlive) {
+                            val line = reader.readLine()
+                            logger.debug { "mpv warns: $line" }
+                        }
+                    } catch (e: Throwable) {
+                        logger.error(e) { "Error while reading mpv error output" }
+                    } finally {
+                        reader.close()
                     }
-                } catch (e: Throwable) {
-                    logger.error(e) { "Error while reading mpv error output" }
-                } finally {
-                    reader.close()
                 }
             }
-        }
+    }
+
     private val writer =
         if (isWin) File(filePath).bufferedWriter()
         else mpv.outputStream.bufferedWriter()
@@ -220,5 +241,15 @@ private class MpvPlayback(
         if (isWin && !File(filePath).delete()) {
             logger.warn { "Could not delete temporary file: $filePath" }
         }
+    }
+}
+
+private object FileSerializer : ConfigSerializer<File> {
+    override fun serialize(obj: File): String {
+        return obj.path
+    }
+
+    override fun deserialize(string: String): File {
+        return File(string)
     }
 }
