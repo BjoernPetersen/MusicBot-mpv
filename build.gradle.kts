@@ -5,8 +5,6 @@ plugins {
     kotlin("jvm") version Plugin.KOTLIN
     idea
 
-    id("com.github.spotbugs") version Plugin.SPOTBUGS_PLUGIN
-
     id("com.github.johnrengelman.shadow") version Plugin.SHADOW_JAR
 }
 
@@ -15,23 +13,17 @@ version = "0.5.0"
 
 repositories {
     jcenter()
-    // maven("https://oss.sonatype.org/content/repositories/snapshots")
+    maven("https://oss.sonatype.org/content/repositories/snapshots") {
+        mavenContent {
+            snapshotsOnly()
+        }
+    }
 }
 
 idea {
     module {
         isDownloadJavadoc = true
     }
-}
-
-spotbugs {
-    isIgnoreFailures = true
-    toolVersion = Plugin.SPOTBUGS_TOOL
-}
-
-java {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
 }
 
 tasks {
@@ -49,14 +41,6 @@ tasks {
 }
 
 dependencies {
-    implementation(
-        group = "io.github.microutils",
-        name = "kotlin-logging",
-        version = Lib.KOTLIN_LOGGING) {
-        exclude("org.slf4j")
-        exclude("org.jetbrains")
-        exclude("org.jetbrains.kotlin")
-    }
     compileOnly(
         group = "com.github.bjoernpetersen",
         name = "musicbot",
@@ -67,6 +51,10 @@ dependencies {
         name = "musicbot-youtube",
         version = Lib.YOUTUBE_PROVIDER)
 
+    testImplementation(
+        group = "com.github.bjoernpetersen",
+        name = "musicbot",
+        version = Lib.MUSICBOT)
     testImplementation(
         group = "org.junit.jupiter",
         name = "junit-jupiter-api",

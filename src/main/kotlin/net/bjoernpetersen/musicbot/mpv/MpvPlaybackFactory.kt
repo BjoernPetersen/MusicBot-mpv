@@ -1,9 +1,14 @@
 package net.bjoernpetersen.musicbot.mpv;
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import net.bjoernpetersen.musicbot.api.config.Config
-import net.bjoernpetersen.musicbot.api.config.ConfigSerializer
 import net.bjoernpetersen.musicbot.api.config.FileChooser
+import net.bjoernpetersen.musicbot.api.config.FileSerializer
 import net.bjoernpetersen.musicbot.api.config.IntSerializer
 import net.bjoernpetersen.musicbot.api.config.NonnullConfigChecker
 import net.bjoernpetersen.musicbot.api.config.NumberBox
@@ -24,7 +29,7 @@ import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
-import kotlin.concurrent.thread
+import kotlin.coroutines.CoroutineContext
 
 private const val EXECUTABLE = "mpv"
 
@@ -34,10 +39,17 @@ class MpvPlaybackFactory :
     FlacPlaybackFactory,
     Mp3PlaybackFactory,
     WavePlaybackFactory,
-    YouTubePlaybackFactory {
+    YouTubePlaybackFactory,
+    CoroutineScope {
 
     override val name: String = "mpv"
     override val description: String = "Plays various files using mpv"
+
+    private val logger = KotlinLogging.logger { }
+
+    private val job = Job()
+    override val coroutineContext: CoroutineContext
+        get() = Dispatchers.IO + job
 
     private lateinit var noVideo: Config.BooleanEntry
     private lateinit var fullscreen: Config.BooleanEntry
@@ -89,46 +101,56 @@ class MpvPlaybackFactory :
 
     override fun createSecretEntries(secrets: Config): List<Config.Entry<*>> = emptyList()
 
-    override fun initialize(initStateWriter: InitStateWriter) {
+    override suspend fun initialize(initStateWriter: InitStateWriter) {
         initStateWriter.state("Testing executable...")
-        try {
-            ProcessBuilder(EXECUTABLE, "-h", "--no-config").start()
-        } catch (e: IOException) {
-            initStateWriter.warning("Failed to start mpv.")
-            throw InitializationException(e)
+        withContext(coroutineContext) {
+            try {
+                @Suppress("BlockingMethodInNonBlockingContext")
+                ProcessBuilder(EXECUTABLE, "-h", "--no-config").start()
+            } catch (e: IOException) {
+                initStateWriter.warning("Failed to start mpv.")
+                throw InitializationException(e)
+            }
         }
 
         initStateWriter.state("Retrieving plugin dir...")
         cmdFileDir = fileStorage.forPlugin(this, true)
     }
 
-    override fun createPlayback(inputFile: File): Playback {
-        if (!inputFile.isFile) throw IOException("File not found: ${inputFile.path}")
-        return MpvPlayback(
-            cmdFileDir,
-            inputFile.canonicalPath,
-            noVideo = noVideo.get(),
-            fullscreen = fullscreen.get(),
-            screen = screen.get()!!,
-            configFile = configFile.get(),
-            ignoreSystemConfig = ignoreSystemConfig.get()
-        )
+    override suspend fun createPlayback(inputFile: File): Playback {
+        return withContext(coroutineContext) {
+            if (!inputFile.isFile) throw IOException("File not found: ${inputFile.path}")
+            MpvPlayback(
+                cmdFileDir,
+                inputFile.canonicalPath,
+                noVideo = noVideo.get(),
+                fullscreen = fullscreen.get(),
+                screen = screen.get()!!,
+                configFile = configFile.get(),
+                ignoreSystemConfig = ignoreSystemConfig.get()
+            )
+        }
     }
 
-    override fun load(videoId: String): Resource = NoResource
-    override fun createPlayback(videoId: String, resource: Resource): Playback {
-        return MpvPlayback(
-            cmdFileDir,
-            "ytdl://$videoId",
-            noVideo = noVideo.get(),
-            fullscreen = fullscreen.get(),
-            screen = screen.get()!!,
-            configFile = configFile.get(),
-            ignoreSystemConfig = ignoreSystemConfig.get()
-        )
+    override suspend fun load(videoId: String): Resource = NoResource
+    override suspend fun createPlayback(videoId: String, resource: Resource): Playback {
+        logger.debug { "Creating playback for $videoId" }
+        return withContext(coroutineContext) {
+            MpvPlayback(
+                cmdFileDir,
+                "ytdl://$videoId",
+                noVideo = noVideo.get(),
+                fullscreen = fullscreen.get(),
+                screen = screen.get()!!,
+                configFile = configFile.get(),
+                ignoreSystemConfig = ignoreSystemConfig.get()
+            )
+        }
     }
 
-    override fun close() {}
+    override suspend fun close() {
+        job.cancel()
+    }
 }
 
 private class MpvPlayback(
@@ -170,7 +192,8 @@ private class MpvPlayback(
         ProcessBuilder(command)
             .start()
             .also { process ->
-                thread(isDaemon = true, name = "mpv-playback-$path-out") {
+                launch(coroutineContext) {
+                    logger.debug { "Listening to output" }
                     val reader = process.inputStream.bufferedReader()
                     try {
                         while (process.isAlive) {
@@ -185,7 +208,8 @@ private class MpvPlayback(
                     logger.debug { "mpv process ended" }
                     markDone()
                 }
-                thread(isDaemon = true, name = "mpv-playback-$path-error") {
+                launch(coroutineContext) {
+                    logger.debug { "Listening to warnings" }
                     val reader = process.errorStream.bufferedReader()
                     try {
                         while (process.isAlive) {
@@ -198,6 +222,7 @@ private class MpvPlayback(
                         reader.close()
                     }
                 }
+                logger.debug { "Started mpv for path: $path" }
             }
     }
 
@@ -205,51 +230,48 @@ private class MpvPlayback(
         if (isWin) File(filePath).bufferedWriter()
         else mpv.outputStream.bufferedWriter()
 
-    override fun play() {
-        writer.apply {
-            write("set pause no")
-            newLine()
-            flush()
-        }
-    }
-
-    override fun pause() {
-        writer.apply {
-            write("set pause yes")
-            newLine()
-            flush()
-        }
-    }
-
-    override fun close() {
-        if (mpv.isAlive) {
-            writer.use {
-                try {
-                    it.write("quit")
-                    it.newLine()
-                } catch (e: IOException) {
-                    logger.warn(e) { "Could not send quit command to mpv" }
-                }
+    override suspend fun play() {
+        withContext(coroutineContext) {
+            writer.apply {
+                write("set pause no")
+                newLine()
+                flush()
             }
         }
-
-        if (!mpv.waitFor(5, TimeUnit.SECONDS)) {
-            logger.warn { "There is probably an unclosed mpv process." }
-            mpv.destroyForcibly()
-        }
-
-        if (isWin && !File(filePath).delete()) {
-            logger.warn { "Could not delete temporary file: $filePath" }
-        }
-    }
-}
-
-private object FileSerializer : ConfigSerializer<File> {
-    override fun serialize(obj: File): String {
-        return obj.path
     }
 
-    override fun deserialize(string: String): File {
-        return File(string)
+    override suspend fun pause() {
+        withContext(coroutineContext) {
+            writer.apply {
+                write("set pause yes")
+                newLine()
+                flush()
+            }
+        }
+    }
+
+    override suspend fun close() {
+        withContext(coroutineContext) {
+            if (mpv.isAlive) {
+                writer.use {
+                    try {
+                        it.write("quit")
+                        it.newLine()
+                    } catch (e: IOException) {
+                        logger.warn(e) { "Could not send quit command to mpv" }
+                    }
+                }
+            }
+
+            if (!mpv.waitFor(5, TimeUnit.SECONDS)) {
+                logger.warn { "There is probably an unclosed mpv process." }
+                mpv.destroyForcibly()
+            }
+
+            if (isWin && !File(filePath).delete()) {
+                logger.warn { "Could not delete temporary file: $filePath" }
+            }
+        }
+        super.close()
     }
 }
