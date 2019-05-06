@@ -51,6 +51,11 @@ dependencies {
         name = "musicbot-youtube",
         version = Lib.YOUTUBE_PROVIDER)
 
+    implementation(
+        group = "com.zaxxer",
+        name = "nuprocess",
+        version = Lib.NU_PROCESS)
+
     testImplementation(
         group = "com.github.bjoernpetersen",
         name = "musicbot",
