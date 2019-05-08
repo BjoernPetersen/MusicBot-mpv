@@ -7,9 +7,11 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -44,8 +46,6 @@ import java.nio.ByteBuffer
 import java.nio.CharBuffer
 import java.time.Duration
 import java.util.LinkedList
-import java.util.regex.Matcher
-import java.util.regex.Pattern
 import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
 
@@ -172,12 +172,12 @@ class MpvPlaybackFactory :
 }
 
 private class MpvHandler : NuAbstractProcessHandler() {
+    private val logger = KotlinLogging.logger { }
+
     private lateinit var mpv: NuProcess
 
     private val patternMutex = Mutex()
-    private val patterns: MutableMap<Pattern, CompletableDeferred<Matcher>> = HashMap(32)
-
-    private val currentLine = StringBuilder(128)
+    private val patterns: MutableMap<Regex, CompletableDeferred<MatchResult>> = HashMap(32)
 
     private val exitValue = CompletableDeferred<Int>()
 
@@ -188,12 +188,16 @@ private class MpvHandler : NuAbstractProcessHandler() {
     private fun matchLine(line: String) {
         runBlocking {
             patternMutex.withLock {
-                val remove = LinkedList<Pattern>()
-                for ((pattern, deferred) in patterns.entries) {
-                    val matcher = pattern.matcher(line)
-                    if (matcher.matches()) {
+                val remove = LinkedList<Regex>()
+                logger.info { "Looking for patterns" }
+                for ((regex, deferred) in patterns.entries) {
+                    logger.info { "Matching ${regex.pattern}" }
+                    val matcher = regex.matchEntire(line)
+                    println("$line MATCH: $matcher")
+                    if (matcher != null) {
                         deferred.complete(matcher)
-                        remove.add(pattern)
+                        println("Completed")
+                        remove.add(regex)
                     }
                 }
                 remove.forEach { patterns.remove(it) }
@@ -202,42 +206,46 @@ private class MpvHandler : NuAbstractProcessHandler() {
     }
 
     override fun onStdout(buffer: ByteBuffer, closed: Boolean) {
-        if (closed) {
-            if (!currentLine.isBlank()) {
-                matchLine(currentLine.toString())
-                currentLine.clear()
-            }
-            return
-        }
+        if (closed) return
 
-        while (buffer.hasRemaining()) {
-            val char = buffer.char
-            if (CharCategory.LINE_SEPARATOR.contains(char)) {
-                matchLine(currentLine.toString())
-                currentLine.clear()
-            } else {
-                currentLine.append(char)
-            }
-        }
+        val bytes = ByteArray(buffer.remaining())
+        buffer.get(bytes)
+        val line = String(bytes)
+        logger.info { "MPV says: $line" }
+        matchLine(line.trim())
+    }
+
+    override fun onStderr(buffer: ByteBuffer, closed: Boolean) {
+        if (closed) return
+
+        val bytes = ByteArray(buffer.remaining())
+        buffer.get(bytes)
+        val line = String(bytes)
+        logger.warn { "MPV complains: $line" }
     }
 
     /**
-     * Expects a message on StdOut matching the given [pattern] within the given [timeout].
+     * Expects a message on StdOut matching the given [regex] within the given [timeout].
      */
-    suspend fun expectMessageAsync(pattern: Pattern, timeout: Duration): Deferred<Matcher> {
-        val matcher = CompletableDeferred<Matcher>()
+    suspend fun expectMessageAsync(
+        regex: Regex,
+        timeout: Duration,
+        scope: CoroutineScope = GlobalScope
+    ): Deferred<MatchResult> {
+        val matcher = CompletableDeferred<MatchResult>()
         patternMutex.withLock {
-            patterns[pattern] = matcher
+            patterns[regex] = matcher
         }
-        return coroutineScope {
-            async {
-                val result = withTimeout(timeout.toMillis()) {
+
+        return scope.async(Dispatchers.Default) {
+            try {
+                withTimeout(timeout.toMillis()) {
                     matcher.await()
                 }
+            } finally {
                 patternMutex.withLock {
-                    patterns.remove(pattern)
+                    patterns.remove(regex)
                 }
-                result
             }
         }
     }
@@ -283,6 +291,32 @@ private class MpvPlayback(
             else logger.debug { "mpv process ended" }
             markDone()
         }
+
+        launch {
+            while (mpv.isRunning) {
+                updateProgress()
+                delay(4000)
+            }
+        }
+    }
+
+    private suspend fun updateProgress() {
+        // Tell process handler to look for our answer
+        val matcher = handler.expectMessageAsync(PROGRESS_MATCH, Duration.ofSeconds(1), this)
+
+        // Tell mpv to send progress message
+        writeCommand("print-text \${=time-pos}")
+
+        try {
+            val matches = matcher.await()
+            val progressString = matches.groupValues[1]
+            val progress = progressString.split('.')
+                .let { Duration.ofSeconds(it[0].toLong(), it[1].toLong()) }
+            logger.debug { "Progress update: ${progress.seconds} ${progress.nano}" }
+            feedbackChannel.updateProgress(progress)
+        } catch (e: TimeoutCancellationException) {
+            logger.warn { "Timeout while waiting for progress message" }
+        }
     }
 
     private fun createCommand(): List<String> {
@@ -293,7 +327,7 @@ private class MpvPlayback(
             "--no-input-default-bindings",
             "--no-osc",
             "--config=${if (ignoreSystemConfig) "no" else "yes"}",
-            "--really-quiet",
+            "--quiet",
             "--video=${if (noVideo) "no" else "auto"}",
             "--fullscreen=${if (fullscreen) "yes" else "no"}",
             "--fs-screen=$screen",
@@ -358,5 +392,9 @@ private class MpvPlayback(
             }
         }
         super.close()
+    }
+
+    private companion object {
+        private val PROGRESS_MATCH = Regex("""(\d+\.\d+)""")
     }
 }
