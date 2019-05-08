@@ -7,3 +7,5 @@ For that purpose, it implements the `YouTubePlaybackFactory` interface defined i
 the [MusicBot-YouTube](https://github.com/BjoernPetersen/MusicBot-YouTube) project.
 
 Please make sure you have the `mpv` command in your `PATH`.
+
+[Download the latest develop build here.](https://felixgail.github.io/CircleCIArtifactProvider/index.html?vcs-type=github&user=BjoernPetersen&project=MusicBot-mpv&build=latest&branch=develop&filter=successful&path=dist/musicbot-mpv.jar&token=522718951921898103b8efd84c4faee6d33823c9)
