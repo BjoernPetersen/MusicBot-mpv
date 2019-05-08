@@ -44,28 +44,34 @@ dependencies {
     compileOnly(
         group = "com.github.bjoernpetersen",
         name = "musicbot",
-        version = Lib.MUSICBOT)
+        version = Lib.MUSICBOT
+    )
 
     implementation(
         group = "com.github.bjoernpetersen",
         name = "musicbot-youtube",
-        version = Lib.YOUTUBE_PROVIDER)
+        version = Lib.YOUTUBE_PROVIDER
+    )
 
     implementation(
         group = "com.zaxxer",
         name = "nuprocess",
-        version = Lib.NU_PROCESS)
+        version = Lib.NU_PROCESS
+    )
 
     testImplementation(
         group = "com.github.bjoernpetersen",
         name = "musicbot",
-        version = Lib.MUSICBOT)
+        version = Lib.MUSICBOT
+    )
     testImplementation(
         group = "org.junit.jupiter",
         name = "junit-jupiter-api",
-        version = Lib.JUNIT)
+        version = Lib.JUNIT
+    )
     testRuntime(
         group = "org.junit.jupiter",
         name = "junit-jupiter-engine",
-        version = Lib.JUNIT)
+        version = Lib.JUNIT
+    )
 }
