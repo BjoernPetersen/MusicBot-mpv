@@ -189,14 +189,10 @@ private class MpvHandler : NuAbstractProcessHandler() {
         runBlocking {
             patternMutex.withLock {
                 val remove = LinkedList<Regex>()
-                logger.info { "Looking for patterns" }
                 for ((regex, deferred) in patterns.entries) {
-                    logger.info { "Matching ${regex.pattern}" }
                     val matcher = regex.matchEntire(line)
-                    println("$line MATCH: $matcher")
                     if (matcher != null) {
                         deferred.complete(matcher)
-                        println("Completed")
                         remove.add(regex)
                     }
                 }
@@ -211,7 +207,7 @@ private class MpvHandler : NuAbstractProcessHandler() {
         val bytes = ByteArray(buffer.remaining())
         buffer.get(bytes)
         val line = String(bytes)
-        logger.info { "MPV says: $line" }
+        logger.trace { "MPV says: $line" }
         matchLine(line.trim())
     }
 
