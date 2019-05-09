@@ -340,9 +340,13 @@ private class MpvPlayback(
     private fun writeCommand(command: String) {
         if (isWin) {
             val cmdWriter = cmdWriter!!
-            cmdWriter.write(command)
-            cmdWriter.newLine()
-            cmdWriter.flush()
+            try {
+                cmdWriter.write(command)
+                cmdWriter.newLine()
+                cmdWriter.flush()
+            } catch (e: IOException) {
+                logger.warn(e) { "Error during command write: $command" }
+            }
         } else {
             val encoder = Charsets.UTF_8.newEncoder()
             val commandBuffer = encoder.encode(CharBuffer.wrap(command + System.lineSeparator()))
