@@ -345,7 +345,7 @@ private class MpvPlayback(
                 cmdWriter.newLine()
                 cmdWriter.flush()
             } catch (e: IOException) {
-                logger.warn(e) { "Error during command write: $command" }
+                logger.info(e) { "Error during command write: $command" }
             }
         } else {
             val encoder = Charsets.UTF_8.newEncoder()
