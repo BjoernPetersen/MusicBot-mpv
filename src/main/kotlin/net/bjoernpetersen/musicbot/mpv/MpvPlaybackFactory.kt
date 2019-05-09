@@ -289,6 +289,7 @@ private class MpvPlayback(
         }
 
         launch {
+            delay(2000)
             while (mpv.isRunning) {
                 updateProgress()
                 delay(4000)
