@@ -26,9 +26,7 @@ import net.bjoernpetersen.musicbot.api.config.FileSerializer
 import net.bjoernpetersen.musicbot.api.config.IntSerializer
 import net.bjoernpetersen.musicbot.api.config.NonnullConfigChecker
 import net.bjoernpetersen.musicbot.api.config.NumberBox
-import net.bjoernpetersen.musicbot.api.loader.NoResource
 import net.bjoernpetersen.musicbot.api.plugin.IdBase
-import net.bjoernpetersen.musicbot.spi.loader.Resource
 import net.bjoernpetersen.musicbot.spi.plugin.AbstractPlayback
 import net.bjoernpetersen.musicbot.spi.plugin.InitializationException
 import net.bjoernpetersen.musicbot.spi.plugin.Playback
@@ -39,6 +37,7 @@ import net.bjoernpetersen.musicbot.spi.plugin.predefined.Mp3PlaybackFactory
 import net.bjoernpetersen.musicbot.spi.plugin.predefined.WavePlaybackFactory
 import net.bjoernpetersen.musicbot.spi.util.FileStorage
 import net.bjoernpetersen.musicbot.youtube.playback.YouTubePlaybackFactory
+import net.bjoernpetersen.musicbot.youtube.playback.YouTubeResource
 import java.io.BufferedWriter
 import java.io.File
 import java.io.IOException
@@ -150,8 +149,9 @@ class MpvPlaybackFactory :
         }
     }
 
-    override suspend fun load(videoId: String): Resource = NoResource
-    override suspend fun createPlayback(videoId: String, resource: Resource): Playback {
+    override suspend fun load(videoId: String): YouTubeResource = NoYouTubeResource(videoId)
+    override suspend fun createPlayback(resource: YouTubeResource): Playback {
+        val videoId = resource.videoId
         logger.debug { "Creating playback for $videoId" }
         return withContext(coroutineContext) {
             MpvPlayback(
@@ -397,4 +397,11 @@ private class MpvPlayback(
     private companion object {
         private val PROGRESS_MATCH = Regex("""(\d+\.\d+)""")
     }
+}
+
+private class NoYouTubeResource(videoId: String) : YouTubeResource(videoId) {
+    override val isValid: Boolean
+        get() = true
+
+    override suspend fun free() {}
 }

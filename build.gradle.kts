@@ -40,18 +40,26 @@ tasks {
     }
 }
 
+configurations.all {
+    resolutionStrategy.cacheChangingModulesFor(1, TimeUnit.MINUTES)
+}
+
 dependencies {
     compileOnly(
         group = "com.github.bjoernpetersen",
         name = "musicbot",
         version = Lib.MUSICBOT
-    )
+    ) {
+        isChanging = Lib.MUSICBOT.contains("SNAPSHOT")
+    }
 
     implementation(
         group = "com.github.bjoernpetersen",
         name = "musicbot-youtube",
         version = Lib.YOUTUBE_PROVIDER
-    )
+    ) {
+        isChanging = Lib.YOUTUBE_PROVIDER.contains("SNAPSHOT")
+    }
 
     implementation(
         group = "com.zaxxer",
