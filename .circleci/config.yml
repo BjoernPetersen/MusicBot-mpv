@@ -32,7 +32,7 @@ jobs:
                 command: ./gradlew classes
                 name: Compiling main classes
             - save_cache:
-                key: v2-{{ checksum "build.gradle.kts" }}-{{ checksum "buildSrc/src/main/kotlin/Plugin.kt" }}-{{ checksum "buildSrc/src/main/kotlin/Lib.kt" }}
+                key: v3-{{ checksum "build.gradle.kts" }}-{{ checksum "buildSrc/src/main/kotlin/Plugin.kt" }}-{{ checksum "buildSrc/src/main/kotlin/Lib.kt" }}
                 paths:
                   - ~/.gradle
             - persist_to_workspace:
