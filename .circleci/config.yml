@@ -85,3 +85,5 @@ workflows:
       - build:
           requires:
             - compile
+            # As long as the CircleCI API doesn't understand workflows
+            - check
