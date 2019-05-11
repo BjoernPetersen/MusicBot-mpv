@@ -1,4 +1,4 @@
-package net.bjoernpetersen.musicbot.mpv;
+package net.bjoernpetersen.musicbot.mpv
 
 import com.zaxxer.nuprocess.NuAbstractProcessHandler
 import com.zaxxer.nuprocess.NuProcess
