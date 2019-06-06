@@ -1,3 +1,4 @@
+import com.diffplug.spotless.LineEnding
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
@@ -31,10 +32,17 @@ idea {
 spotless {
     kotlin {
         ktlint()
+        lineEndings = LineEnding.UNIX
         endWithNewline()
     }
     kotlinGradle {
         ktlint()
+        lineEndings = LineEnding.UNIX
+        endWithNewline()
+    }
+    format("markdown") {
+        target("**/*.md")
+        lineEndings = LineEnding.UNIX
         endWithNewline()
     }
 }
